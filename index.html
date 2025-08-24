@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>📒 カイヤメモ帳（PWA）</title>
+<meta name="theme-color" content="#4CAF50" />
+
+<!-- PWA設定 -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="カイヤメモ">
+
+<style>
+  :root { --bg:#f7f4ee; --card:#ffffff; --ink:#222; --muted:#777; --green:#4CAF50; --danger:#e74c3c; --star:#f0b400; }
+  html,body { margin:0; background:var(--bg); color:var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, "ヒラギノ角ゴ ProN", "Noto Sans JP", sans-serif; }
+  .wrap { max-width:860px; margin:0 auto; padding:18px 14px 80px; }
+  h1 { margin:0 0 6px; font-size:1.6rem; font-weight:800; letter-spacing:.02em; }
+  .status { font-size:.9rem; color:var(--muted); margin-bottom:10px; }
+  .row { margin:8px 0; }
+  input, textarea { width:100%; box-sizing:border-box; padding:.8rem .9rem; border:2px solid #d9d9d9; border-radius:12px; background:#fff; font-size:1rem; }
+  textarea { min-height:140px; resize:vertical; }
+  .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.7rem 1.1rem; border-radius:12px; border:none; cursor:pointer; font-size:1rem; transition: all 0.2s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-ghost { background:transparent; border:2px solid #ddd; }
+  .btn-danger { background:transparent; color:var(--danger); border:2px solid var(--danger); }
+  .notes { margin-top:20px; display:flex; flex-direction:column; gap:10px; }
+  .note { background:var(--card); border-radius:14px; border:1px solid #e8e5de; padding:10px 12px; position:relative; box-shadow: 0 2px 4px rgba(0,0,0,.04); transition: transform 0.2s ease; }
+  .note:hover { transform: translateY(-2px); }
+  .note.dragging { opacity: 0.5; transform: rotate(5deg); z-index: 1000; }
+  .note.drag-over { border-color: var(--green); background: #f0fff0; }
+  .drag-handle { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #ccc; cursor: grab; font-size: 18px; user-select: none; opacity: 0; transition: opacity 0.2s ease; }
+  .note:hover .drag-handle { opacity: 1; }
+  .drag-handle:active { cursor: grabbing; }
+  .note-head { display:flex; align-items:center; gap:10px; }
+  .note-title { flex:1; font-weight:700; padding:.6rem .7rem; border-radius:10px; background:#f4f4f4; }
+  .note-body { margin:.5rem .1rem 0; padding:.6rem .2rem; border-top:1px solid #eee; white-space:pre-wrap; word-break:break-word; color:#333; display: none; transition: all 0.3s ease; }
+  .note-body.open { display: block; }
+  .note-title { flex:1; font-weight:700; padding:.6rem .7rem; border-radius:10px; background:#f4f4f4; cursor: pointer; user-select: none; transition: background-color 0.2s ease; -webkit-tap-highlight-color: transparent; }
+  .note-title:hover { background: #e8e8e8; }
+  .note-title:active { background: #ddd; }
+  .close-btn { position: fixed; top: 20px; right: 20px; background: #ff6b6b; color: white; border: none; border-radius: 50%; width: 48px; height: 48px; cursor: pointer; font-size: 18px; line-height: 1; display: none; align-items: center; justify-content: center; opacity: 0.9; transition: all 0.2s ease; z-index: 1000; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3); }
+  .close-btn:hover { opacity: 1; transform: scale(1.1); box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4); }
+  .close-btn.show { display: flex; }
+  .note-foot { display:flex; gap:8px; justify-content:flex-end; padding-top:.5rem; }
+  .pin { font-size:1.2rem; color:#bbb; cursor:pointer; user-select:none; }
+  .pin.active { color:var(--star); filter: drop-shadow(0 1px 0 rgba(0,0,0,.1)); }
+  .muted { color:var(--muted); font-size:.85rem; }
+  .search { position:relative; }
+  .search input { padding-left:2.2rem; }
+  .search::before { content:"🔎"; position:absolute; left:.6rem; top:.55rem; opacity:.55; }
+  .toolbar { display:flex; gap:8px; align-items:center; margin:.4rem 0 1rem; }
+  .badge { background:#eef6ff; border:1px solid #cde3ff; color:#357; padding:.2rem .5rem; border-radius:999px; font-size:.78rem; }
+  .star-btn { background:transparent; border:none; cursor:pointer; font-size:1.4rem; line-height:1; transition: transform 0.2s ease; }
+  .star-btn:hover { transform: scale(1.1); }
+  .loading { display: none; }
+  .loading.show { display: inline-block; }
+  
+  /* レスポンシブ対応 */
+  @media (max-width: 480px) {
+    .wrap { padding: 12px 10px 60px; }
+    .note-foot { flex-direction: column; gap: 6px; }
+    .btn { padding: .6rem .8rem; font-size: .9rem; }
+    .drag-handle { display: none; } /* モバイルでドラッグハンドルを非表示 */
+    .note-head, .note-body, .note-foot { margin-left: 0 !important; } /* モバイルでマージンリセット */
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📒 カイヤメモ帳（PWA）</h1>
+  <div id="status" class="status">接続状態: 判定中…</div>
+
+  <div class="row search">
+    <input id="search" placeholder="タイトルや本文で検索" autocomplete="off" />
+  </div>
+  <div class="row">
+    <input id="title" placeholder="タイトル" />
+  </div>
+  <div class="row">
+    <textarea id="content" placeholder="メモ内容（改行OK）"></textarea>
+  </div>
+  <div class="row">
+    <button id="save" class="btn btn-primary">
+      <span class="loading" id="saveLoading">💭</span>
+      <span id="saveText">💾 新規保存</span>
+    </button>
+    <button id="cancel" class="btn btn-ghost" style="display:none;">❌ キャンセル</button>
+  </div>
+
+  <div id="notes" class="notes"></div>
+
+  <!-- 固定閉じるボタン -->
+  <button id="fixedCloseBtn" class="close-btn">×</button>
+</div>
+
+<script type="module">
+// ======= Service Worker 登録 =======
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('./sw.js');
+      console.log('SW registered: ', registration);
+    } catch (error) {
+      console.log('SW registration failed: ', error);
+    }
+  });
+}
+
+// ======= Firebase SDK =======
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
+import {
+  getFirestore, enableIndexedDbPersistence,
+  collection, addDoc, doc, updateDoc, setDoc, deleteDoc,
+  onSnapshot, query, orderBy, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+
+// === Firebase設定 ===
+const firebaseConfig = {
+  apiKey: "AIzaSyDk9wJ0tEMn47X6z1kfdia4a-e0-Mt5vAA",
+  authDomain: "kyanitememo-book.firebaseapp.com",
+  projectId: "kyanitememo-book",
+  storageBucket: "kyanitememo-book.appspot.com",
+  messagingSenderId: "574061254095",
+  appId: "1:574061254095:web:3fe06ec6843e1b284053ba"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// オフライン永続化（対応端末のみ）
+try { 
+  await enableIndexedDbPersistence(db); 
+  console.log('Offline persistence enabled');
+} catch(e){ 
+  console.log('Offline persistence failed:', e.message); 
+}
+
+// ======= UI refs =======
+const statusEl  = document.getElementById('status');
+const titleEl   = document.getElementById('title');
+const contentEl = document.getElementById('content');
+const saveBtn   = document.getElementById('save');
+const saveLoadingEl = document.getElementById('saveLoading');
+const saveTextEl = document.getElementById('saveText');
+const cancelBtn = document.getElementById('cancel');
+const notesEl   = document.getElementById('notes');
+const searchEl  = document.getElementById('search');
+const fixedCloseBtn = document.getElementById('fixedCloseBtn');
+
+// バージョン表示
+const VERSION = "v-2025-08-23-pwa-fix";
+function updateNetStatus(){ 
+  const online = navigator.onLine;
+  statusEl.textContent = `接続状態: ${online ? "オンライン" : "オフライン"} / HTML: ${VERSION}`;
+  statusEl.style.color = online ? "var(--green)" : "var(--danger)";
+}
+window.addEventListener('online', updateNetStatus);
+window.addEventListener('offline', updateNetStatus);
+updateNetStatus();
+
+// ======= 状態 =======
+let editingId = null;    // 編集対象の doc.id
+let allNotes = [];       // 表示用キャッシュ（検索フィルタに使う）
+let isLoading = false;   // 保存中フラグ
+let openNoteId = null;   // 現在開いているメモのID
+let draggedNote = null;  // ドラッグ中のメモ
+
+// ======= クエリ購読（ピン→order） =======
+const qNotes = query(
+  collection(db, "notes"),
+  orderBy("pinned", "desc"),
+  orderBy("order",  "asc")
+);
+
+onSnapshot(qNotes, (snap) => {
+  allNotes = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  render(allNotes, searchEl.value.trim());
+  console.log(`Loaded ${allNotes.length} notes`);
+}, (err)=>{
+  statusEl.textContent = `❗Firestore購読エラー: ${err.message}`;
+  statusEl.style.color = "var(--danger)";
+  console.error('Firestore error:', err);
+});
+
+// ======= 保存/更新 =======
+saveBtn.addEventListener('click', async () => {
+  if (isLoading) return;
+  
+  const title = titleEl.value.trim();
+  const content = contentEl.value.trim();
+  if (!title && !content) {
+    alert('タイトルまたは内容を入力してください。');
+    return;
+  }
+
+  isLoading = true;
+  saveLoadingEl.classList.add('show');
+  saveBtn.disabled = true;
+
+  try {
+    if (!editingId) {
+      // 新規：並び順に必須の2つを必ず付与（新しいものを上に表示するため小さい値を使用）
+      await addDoc(collection(db,"notes"), {
+        title, content,
+        pinned: false,
+        order: -Date.now(), // 負の値で新しいものが上に来る
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      console.log('New note created');
+    } else {
+      // 既存更新：pinned/order を壊さない！
+      const ref = doc(db, "notes", editingId);
+      await updateDoc(ref, {
+        title, content,
+        updatedAt: serverTimestamp(),
+      });
+      console.log('Note updated:', editingId);
+      exitEditMode();
+    }
+    // 成功後にだけクリア
+    clearForm();
+  } catch (e) {
+    alert("保存/更新に失敗: " + e.message);
+    console.error('Save error:', e);
+  } finally {
+    isLoading = false;
+    saveLoadingEl.classList.remove('show');
+    saveBtn.disabled = false;
+  }
+});
+
+// キャンセルボタン
+cancelBtn.addEventListener('click', () => {
+  exitEditMode();
+  clearForm();
+});
+
+// 固定閉じるボタン
+fixedCloseBtn.addEventListener('click', () => {
+  openNoteId = null;
+  fixedCloseBtn.classList.remove('show');
+  render(allNotes, searchEl.value.trim());
+});
+
+function exitEditMode() {
+  editingId = null;
+  saveTextEl.textContent = "💾 新規保存";
+  cancelBtn.style.display = "none";
+}
+
+function clearForm() {
+  titleEl.value = "";
+  contentEl.value = "";
+}
+
+// ======= レンダリング =======
+function render(list, keyword="") {
+  const kw = keyword.toLowerCase();
+  const filtered = kw
+    ? list.filter(n =>
+        (n.title||"").toLowerCase().includes(kw) ||
+        (n.content||"").toLowerCase().includes(kw))
+    : list;
+
+  notesEl.innerHTML = "";
+
+  // 固定閉じるボタンの表示/非表示
+  if (openNoteId) {
+    fixedCloseBtn.classList.add('show');
+  } else {
+    fixedCloseBtn.classList.remove('show');
+  }
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.style.marginTop = '10px';
+    empty.textContent = kw ? "該当するメモはありません。" : "メモはまだありません。";
+    notesEl.appendChild(empty);
+    return;
+  }
+
+  for (const note of filtered) {
+    const card = document.createElement('div');
+    card.className = 'note';
+    card.dataset.noteId = note.id;
+
+    // ドラッグハンドル
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'drag-handle';
+    dragHandle.innerHTML = '⋮⋮';
+    dragHandle.title = 'ドラッグして並び替え';
+    dragHandle.draggable = true;
+
+    // ドラッグイベント（ハンドルのみ）
+    dragHandle.addEventListener('dragstart', (e) => {
+      draggedNote = note;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', card.outerHTML);
+    });
+
+    card.addEventListener('dragend', (e) => {
+      card.classList.remove('dragging');
+      draggedNote = null;
+      // すべてのdrag-overクラスを削除
+      document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+    });
+
+    card.addEventListener('dragover', (e) => {
+      if (draggedNote && draggedNote.id !== note.id) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        card.classList.add('drag-over');
+      }
+    });
+
+    card.addEventListener('dragleave', (e) => {
+      card.classList.remove('drag-over');
+    });
+
+    card.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      
+      if (draggedNote && draggedNote.id !== note.id) {
+        await reorderNotes(draggedNote.id, note.id);
+      }
+    });
+
+    // header
+    const head = document.createElement('div');
+    head.className = 'note-head';
+    
+    // モバイル判定
+    const isMobile = window.innerWidth <= 480;
+    if (!isMobile) {
+      head.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
+    }
+
+    const titleBox = document.createElement('div');
+    titleBox.className = 'note-title';
+    titleBox.textContent = note.title || "(無題)";
+    
+    // タイトルクリックでアコーディオン開閉
+    titleBox.addEventListener('click', (e) => {
+      e.preventDefault(); // デフォルト動作を防止
+      e.stopPropagation(); // イベントの伝播を停止
+      
+      if (openNoteId === note.id) {
+        openNoteId = null; // 同じメモをクリックしたら閉じる
+      } else {
+        openNoteId = note.id; // 違うメモをクリックしたら開く
+      }
+      render(allNotes, searchEl.value.trim());
+    });
+
+    // モバイル対応のタッチイベント
+    titleBox.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (openNoteId === note.id) {
+        openNoteId = null;
+      } else {
+        openNoteId = note.id;
+      }
+      render(allNotes, searchEl.value.trim());
+    });
+
+    const pinBtn = document.createElement('button');
+    pinBtn.className = 'star-btn';
+    pinBtn.title = "ピン留め";
+    pinBtn.innerHTML = note.pinned ? "⭐" : "☆";
+    pinBtn.style.color = note.pinned ? "var(--star)" : "#999";
+    pinBtn.addEventListener('click', async (e) => {
+      e.stopPropagation(); // タイトルクリックイベントを阻止
+      try {
+        await updateDoc(doc(db,"notes",note.id), { pinned: !note.pinned });
+        console.log('Pin toggled:', note.id);
+      } catch(e){ 
+        alert("ピン留め失敗: "+e.message); 
+        console.error('Pin error:', e);
+      }
+    });
+
+    head.appendChild(titleBox);
+    head.appendChild(pinBtn);
+
+    // body
+    const body = document.createElement('div');
+    body.className = 'note-body';
+    if (!isMobile) {
+      body.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
+    }
+    if (openNoteId === note.id) {
+      body.classList.add('open');
+    }
+    body.textContent = note.content || "";
+
+    // foot - 開いている時のみ表示
+    const foot = document.createElement('div');
+    foot.className = 'note-foot';
+    foot.style.display = openNoteId === note.id ? 'flex' : 'none';
+    if (!isMobile) {
+      foot.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
+    }
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-ghost';
+    editBtn.textContent = "✏️ 編集";
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      editingId = note.id;
+      titleEl.value = note.title || "";
+      contentEl.value = note.content || "";
+      saveTextEl.textContent = "📝 更新";
+      cancelBtn.style.display = "inline-flex";
+      window.scrollTo({ top:0, behavior:'smooth' });
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-danger';
+    delBtn.textContent = "🗑 削除";
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm("このメモを削除しますか？")) return;
+      try { 
+        await deleteDoc(doc(db,"notes",note.id)); 
+        console.log('Note deleted:', note.id);
+        if (openNoteId === note.id) {
+          openNoteId = null; // 削除したメモが開いていた場合はクリア
+        }
+      }
+      catch(e){ 
+        alert("削除に失敗: "+e.message); 
+        console.error('Delete error:', e);
+      }
+    });
+
+    const time = document.createElement('div');
+    time.className = 'muted';
+    time.style.marginRight = "auto";
+    
+    // 日時表示の改善
+    if (note.createdAt?.toDate) {
+      const date = note.createdAt.toDate();
+      time.textContent = date.toLocaleString('ja-JP', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } else {
+      time.textContent = "同期中...";
+    }
+
+    foot.appendChild(time);
+    foot.appendChild(editBtn);
+    foot.appendChild(delBtn);
+
+    // ドラッグハンドルはPCのみ表示
+    if (!isMobile) {
+      card.appendChild(dragHandle);
+    }
+    card.appendChild(head);
+    card.appendChild(body);
+    card.appendChild(foot);
+
+    notesEl.appendChild(card);
+  }
+}
+
+// ======= 検索 =======
+let searchTimeout;
+searchEl.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    render(allNotes, searchEl.value.trim());
+  }, 300); // デバウンス処理
+});
+
+// ======= キーボードショートカット =======
+document.addEventListener('keydown', (e) => {
+  // Ctrl+S または Cmd+S で保存
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (!isLoading) {
+      saveBtn.click();
+    }
+  }
+  
+  // Escapeで編集キャンセル
+  if (e.key === 'Escape' && editingId) {
+    exitEditMode();
+    clearForm();
+  }
+});
+
+// ======= 並び替え機能 =======
+async function reorderNotes(draggedId, targetId) {
+  try {
+    const draggedNote = allNotes.find(n => n.id === draggedId);
+    const targetNote = allNotes.find(n => n.id === targetId);
+    
+    if (!draggedNote || !targetNote) return;
+    
+    // ピン留めメモ同士、または通常メモ同士の場合のみ並び替え可能
+    if (draggedNote.pinned !== targetNote.pinned) {
+      alert('ピン留めメモと通常メモは並び替えできません');
+      return;
+    }
+    
+    // 新しいorder値を計算
+    const targetIndex = allNotes.findIndex(n => n.id === targetId);
+    let newOrder;
+    
+    if (targetIndex === 0) {
+      // 一番上に移動
+      newOrder = targetNote.order - 1;
+    } else if (targetIndex === allNotes.length - 1) {
+      // 一番下に移動
+      newOrder = targetNote.order + 1;
+    } else {
+      // 間に挿入
+      const prevNote = allNotes[targetIndex - 1];
+      newOrder = (prevNote.order + targetNote.order) / 2;
+    }
+    
+    // Firestoreを更新
+    await updateDoc(doc(db, "notes", draggedId), {
+      order: newOrder,
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log('Note reordered:', draggedId, 'new order:', newOrder);
+    
+  } catch (error) {
+    console.error('Reorder failed:', error);
+    alert('並び替えに失敗しました: ' + error.message);
+  }
+}
+
+console.log('Kaiya Memo PWA initialized');
+</script>
+</body>
+</html>
