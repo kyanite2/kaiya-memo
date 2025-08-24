@@ -296,23 +296,47 @@ function render(list, keyword="") {
     dragHandle.className = 'drag-handle';
     dragHandle.innerHTML = '⋮⋮';
     dragHandle.title = 'ドラッグして並び替え';
-    dragHandle.draggable = true;
 
     // ドラッグイベント（ハンドルのみ）
+    dragHandle.addEventListener('mousedown', (e) => {
+      card.draggable = true;
+    });
+
     dragHandle.addEventListener('dragstart', (e) => {
       draggedNote = note;
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/html', card.outerHTML);
+      e.dataTransfer.setData('text/plain', note.id);
+    });
+
+    // カード全体のドラッグイベント
+    card.addEventListener('dragstart', (e) => {
+      // ドラッグハンドルから開始された場合のみ許可
+      if (!card.draggable) {
+        e.preventDefault();
+        return false;
+      }
+      draggedNote = note;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', note.id);
     });
 
     card.addEventListener('dragend', (e) => {
       card.classList.remove('dragging');
+      card.draggable = false; // ドラッグ終了後は無効にする
       draggedNote = null;
       // すべてのdrag-overクラスを削除
       document.querySelectorAll('.drag-over').forEach(el => {
         el.classList.remove('drag-over');
       });
+    });
+
+    // マウスリーブ時にドラッグを無効化
+    card.addEventListener('mouseleave', (e) => {
+      if (!e.buttons) { // マウスボタンが押されていない場合
+        card.draggable = false;
+      }
     });
 
     card.addEventListener('dragover', (e) => {
@@ -341,9 +365,12 @@ function render(list, keyword="") {
     head.className = 'note-head';
     
     // モバイル判定
-    const isMobile = window.innerWidth <= 480;
+    const isMobile = window.innerWidth <= 480 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (!isMobile) {
       head.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
+      card.addEventListener('mouseenter', () => {
+        // PCでホバー時のみドラッグ可能にする準備
+      });
     }
 
     const titleBox = document.createElement('div');
@@ -470,6 +497,7 @@ function render(list, keyword="") {
     // ドラッグハンドルはPCのみ表示
     if (!isMobile) {
       card.appendChild(dragHandle);
+      card.draggable = false; // 初期状態では無効
     }
     card.appendChild(head);
     card.appendChild(body);
