@@ -297,10 +297,15 @@ function render(list, keyword="") {
     dragHandle.innerHTML = '⋮⋮';
     dragHandle.title = 'ドラッグして並び替え';
 
-    // ドラッグイベント（ハンドルのみ）
+    // ドラッグイベント（PC・モバイル両対応）
     dragHandle.addEventListener('mousedown', (e) => {
       card.draggable = true;
     });
+
+    dragHandle.addEventListener('touchstart', (e) => {
+      card.draggable = true;
+      e.preventDefault(); // スクロールを防止
+    }, { passive: false });
 
     dragHandle.addEventListener('dragstart', (e) => {
       draggedNote = note;
@@ -308,6 +313,73 @@ function render(list, keyword="") {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', note.id);
     });
+
+    // タッチ用のドラッグ処理
+    let touchStartY = 0;
+    let touchCurrentY = 0;
+    let isDragging = false;
+
+    dragHandle.addEventListener('touchstart', (e) => {
+      touchStartY = e.touches[0].clientY;
+      isDragging = false;
+    }, { passive: false });
+
+    dragHandle.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      touchCurrentY = e.touches[0].clientY;
+      
+      if (Math.abs(touchCurrentY - touchStartY) > 10 && !isDragging) {
+        isDragging = true;
+        draggedNote = note;
+        card.classList.add('dragging');
+      }
+      
+      if (isDragging) {
+        // ドラッグ中の視覚効果
+        card.style.transform = `translateY(${touchCurrentY - touchStartY}px)`;
+        
+        // 現在のタッチ位置の下にある要素を取得
+        const elementBelow = document.elementFromPoint(e.touches[0].clientX, touchCurrentY);
+        const noteBelow = elementBelow?.closest('.note');
+        
+        // すべてのdrag-overを削除
+        document.querySelectorAll('.drag-over').forEach(el => {
+          el.classList.remove('drag-over');
+        });
+        
+        if (noteBelow && noteBelow !== card) {
+          noteBelow.classList.add('drag-over');
+        }
+      }
+    }, { passive: false });
+
+    dragHandle.addEventListener('touchend', (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        
+        // タッチ終了位置の要素を取得
+        const elementBelow = document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        const noteBelow = elementBelow?.closest('.note');
+        
+        if (noteBelow && noteBelow !== card && draggedNote) {
+          const targetNoteId = noteBelow.dataset.noteId;
+          const targetNote = allNotes.find(n => n.id === targetNoteId);
+          if (targetNote) {
+            reorderNotes(draggedNote.id, targetNote.id);
+          }
+        }
+        
+        // リセット
+        card.style.transform = '';
+        card.classList.remove('dragging');
+        document.querySelectorAll('.drag-over').forEach(el => {
+          el.classList.remove('drag-over');
+        });
+        draggedNote = null;
+        isDragging = false;
+      }
+      card.draggable = false;
+    }, { passive: false });
 
     // カード全体のドラッグイベント
     card.addEventListener('dragstart', (e) => {
@@ -364,13 +436,13 @@ function render(list, keyword="") {
     const head = document.createElement('div');
     head.className = 'note-head';
     
-    // モバイル判定
+    // モバイル判定（ドラッグハンドルは常に表示）
     const isMobile = window.innerWidth <= 480 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) {
-      head.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
-      card.addEventListener('mouseenter', () => {
-        // PCでホバー時のみドラッグ可能にする準備
-      });
+    
+    if (isMobile) {
+      head.style.marginLeft = '48px'; // モバイル用のスペース
+    } else {
+      head.style.marginLeft = '24px'; // PC用のスペース
     }
 
     const titleBox = document.createElement('div');
@@ -425,8 +497,10 @@ function render(list, keyword="") {
     // body
     const body = document.createElement('div');
     body.className = 'note-body';
-    if (!isMobile) {
-      body.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
+    if (isMobile) {
+      body.style.marginLeft = '48px'; // モバイル用のスペース
+    } else {
+      body.style.marginLeft = '24px'; // PC用のスペース
     }
     if (openNoteId === note.id) {
       body.classList.add('open');
@@ -437,8 +511,10 @@ function render(list, keyword="") {
     const foot = document.createElement('div');
     foot.className = 'note-foot';
     foot.style.display = openNoteId === note.id ? 'flex' : 'none';
-    if (!isMobile) {
-      foot.style.marginLeft = '24px'; // ドラッグハンドル分のスペース
+    if (isMobile) {
+      foot.style.marginLeft = '48px'; // モバイル用のスペース
+    } else {
+      foot.style.marginLeft = '24px'; // PC用のスペース
     }
 
     const editBtn = document.createElement('button');
@@ -494,14 +570,12 @@ function render(list, keyword="") {
     foot.appendChild(editBtn);
     foot.appendChild(delBtn);
 
-    // ドラッグハンドルはPCのみ表示
-    if (!isMobile) {
-      card.appendChild(dragHandle);
-      card.draggable = false; // 初期状態では無効
-    }
+    // ドラッグハンドルはPC・モバイル両方で表示
+    card.appendChild(dragHandle);
     card.appendChild(head);
     card.appendChild(body);
     card.appendChild(foot);
+    card.draggable = false; // 初期状態では無効
 
     notesEl.appendChild(card);
   }
