@@ -635,3 +635,34 @@ async function reorderNotes(draggedId, targetId) {
     await updateDoc(doc(db, "notes", draggedId), {
       order: newOrder,
       updatedAt: serverTimestamp()
+    });
+    
+    console.log('Note reordered:', draggedId, 'new order:', newOrder);
+    
+  } catch (error) {
+    console.error('Reorder failed:', error);
+    alert('並び替えに失敗しました: ' + error.message);
+  }
+}
+
+// ======= キーボードショートカット =======
+document.addEventListener('keydown', (e) => {
+  // Ctrl+S または Cmd+S で保存
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (!isLoading) {
+      saveBtn.click();
+    }
+  }
+  
+  // Escapeで編集キャンセル
+  if (e.key === 'Escape' && editingId) {
+    exitEditMode();
+    clearForm();
+  }
+});
+
+console.log('Kaiya Memo PWA initialized - Mobile Drag Enabled');
+</script>
+</body>
+</html>
