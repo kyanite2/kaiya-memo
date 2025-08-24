@@ -33,19 +33,36 @@
   .note:hover { transform: translateY(-2px); }
   .note.dragging { opacity: 0.5; transform: rotate(5deg); z-index: 1000; }
   .note.drag-over { border-color: var(--green); background: #f0fff0; }
-  .drag-handle { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #ccc; cursor: grab; font-size: 18px; user-select: none; opacity: 0; transition: opacity 0.2s ease; }
+  .drag-handle { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #ccc; cursor: grab; font-size: 18px; user-select: none; opacity: 0; transition: opacity 0.2s ease; touch-action: none; }
   .note:hover .drag-handle { opacity: 1; }
   .drag-handle:active { cursor: grabbing; }
+  
+  /* モバイル用ドラッグハンドル */
+  @media (max-width: 480px) {
+    .wrap { padding: 12px 10px 60px; }
+    .note-foot { flex-direction: column; gap: 6px; }
+    .btn { padding: .6rem .8rem; font-size: .9rem; }
+    .drag-handle { 
+      opacity: 0.6; 
+      font-size: 20px; 
+      left: 12px;
+      color: #999;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .note-head, .note-body, .note-foot { margin-left: 48px !important; } /* モバイルでもマージン確保 */
+  }
   .note-head { display:flex; align-items:center; gap:10px; }
-  .note-title { flex:1; font-weight:700; padding:.6rem .7rem; border-radius:10px; background:#f4f4f4; }
-  .note-body { margin:.5rem .1rem 0; padding:.6rem .2rem; border-top:1px solid #eee; white-space:pre-wrap; word-break:break-word; color:#333; display: none; transition: all 0.3s ease; }
-  .note-body.open { display: block; }
   .note-title { flex:1; font-weight:700; padding:.6rem .7rem; border-radius:10px; background:#f4f4f4; cursor: pointer; user-select: none; transition: background-color 0.2s ease; -webkit-tap-highlight-color: transparent; }
   .note-title:hover { background: #e8e8e8; }
   .note-title:active { background: #ddd; }
-  .close-btn { position: fixed; top: 20px; right: 20px; background: #ff6b6b; color: white; border: none; border-radius: 50%; width: 48px; height: 48px; cursor: pointer; font-size: 18px; line-height: 1; display: none; align-items: center; justify-content: center; opacity: 0.9; transition: all 0.2s ease; z-index: 1000; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3); }
-  .close-btn:hover { opacity: 1; transform: scale(1.1); box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4); }
-  .close-btn.show { display: flex; }
+  .note-body { margin:.5rem .1rem 0; padding:.6rem .2rem; border-top:1px solid #eee; white-space:pre-wrap; word-break:break-word; color:#333; display: none; transition: all 0.3s ease; }
+  .note-body.open { display: block; }
   .note-foot { display:flex; gap:8px; justify-content:flex-end; padding-top:.5rem; }
   .pin { font-size:1.2rem; color:#bbb; cursor:pointer; user-select:none; }
   .pin.active { color:var(--star); filter: drop-shadow(0 1px 0 rgba(0,0,0,.1)); }
@@ -59,21 +76,15 @@
   .star-btn:hover { transform: scale(1.1); }
   .loading { display: none; }
   .loading.show { display: inline-block; }
-  
-  /* レスポンシブ対応 */
-  @media (max-width: 480px) {
-    .wrap { padding: 12px 10px 60px; }
-    .note-foot { flex-direction: column; gap: 6px; }
-    .btn { padding: .6rem .8rem; font-size: .9rem; }
-    .drag-handle { display: none; } /* モバイルでドラッグハンドルを非表示 */
-    .note-head, .note-body, .note-foot { margin-left: 0 !important; } /* モバイルでマージンリセット */
-  }
+  .close-btn { position: fixed; top: 20px; right: 20px; background: #ff6b6b; color: white; border: none; border-radius: 50%; width: 48px; height: 48px; cursor: pointer; font-size: 18px; line-height: 1; display: none; align-items: center; justify-content: center; opacity: 0.9; transition: all 0.2s ease; z-index: 1000; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3); }
+  .close-btn:hover { opacity: 1; transform: scale(1.1); box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4); }
+  .close-btn.show { display: flex; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>📒 カイヤメモ帳（PWA）</h1>
-  <div id="status" class="status">接続状態: 判定中…</div>
+  <div id="status" class="status">接続状態: 判定中… / 更新: 2025-08-24-mobile-drag</div>
 
   <div class="row search">
     <input id="search" placeholder="タイトルや本文で検索" autocomplete="off" />
@@ -153,7 +164,7 @@ const searchEl  = document.getElementById('search');
 const fixedCloseBtn = document.getElementById('fixedCloseBtn');
 
 // バージョン表示
-const VERSION = "v-2025-08-23-pwa-fix";
+const VERSION = "v-2025-08-24-mobile-drag-fix";
 function updateNetStatus(){ 
   const online = navigator.onLine;
   statusEl.textContent = `接続状態: ${online ? "オンライン" : "オフライン"} / HTML: ${VERSION}`;
@@ -590,23 +601,6 @@ searchEl.addEventListener('input', () => {
   }, 300); // デバウンス処理
 });
 
-// ======= キーボードショートカット =======
-document.addEventListener('keydown', (e) => {
-  // Ctrl+S または Cmd+S で保存
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-    e.preventDefault();
-    if (!isLoading) {
-      saveBtn.click();
-    }
-  }
-  
-  // Escapeで編集キャンセル
-  if (e.key === 'Escape' && editingId) {
-    exitEditMode();
-    clearForm();
-  }
-});
-
 // ======= 並び替え機能 =======
 async function reorderNotes(draggedId, targetId) {
   try {
@@ -641,17 +635,3 @@ async function reorderNotes(draggedId, targetId) {
     await updateDoc(doc(db, "notes", draggedId), {
       order: newOrder,
       updatedAt: serverTimestamp()
-    });
-    
-    console.log('Note reordered:', draggedId, 'new order:', newOrder);
-    
-  } catch (error) {
-    console.error('Reorder failed:', error);
-    alert('並び替えに失敗しました: ' + error.message);
-  }
-}
-
-console.log('Kaiya Memo PWA initialized');
-</script>
-</body>
-</html>
